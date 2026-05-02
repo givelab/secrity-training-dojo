@@ -1,0 +1,57 @@
+# ✅ 解答例: NetworkPolicyによるマイクロセグメンテーション
+
+# backendからのEgressを必要最小限に制限
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-network-policy
+  namespace: dojo
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # ✅ frontendからのアクセスのみ許可
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 3000
+
+  egress:
+    # ✅ PostgreSQLへの通信のみ許可
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # ✅ DNS解決のみ許可
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # ✅ AWS API（Secrets Manager等）へのアクセスはVPCエンドポイント経由のみ
+    # インターネットへの直接Egressは許可しない → マイニングプール通信をブロック
+---
+# Podがallを拒否するデフォルトポリシー（Deny All）
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: dojo
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

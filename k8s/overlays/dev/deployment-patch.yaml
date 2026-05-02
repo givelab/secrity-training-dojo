@@ -1,0 +1,48 @@
+# ⚠️ 【学習用】意図的に脆弱なKubernetesマニフェスト
+# このファイルには複数のセキュリティ問題が含まれています。
+# 課題1と課題2を解決するために何を修正すべきか調査してください。
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  template:
+    spec:
+      # ⚠️ 課題2-A: hostPIDを有効化 → ホストのプロセス空間が見える
+      hostPID: true
+      # ⚠️ 課題2-B: hostNetworkを有効化 → ホストのネットワーク空間を共有
+      hostNetwork: true
+      containers:
+        - name: backend
+          env:
+            # ⚠️ 課題1-A: DBパスワードが平文でマニフェストに書かれている
+            - name: DB_HOST
+              value: "postgres-svc"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "appdb"
+            - name: DB_USER
+              value: "appuser"
+            - name: DB_PASSWORD
+              value: "super_secret_password_123"   # ❌ 絶対にNG
+            # ⚠️ 課題1-B: AWSクレデンシャルが平文でマニフェストに書かれている
+            - name: AWS_ACCESS_KEY_ID
+              value: "AKIAIOSFODNN7EXAMPLE"         # ❌ 絶対にNG
+            - name: AWS_SECRET_ACCESS_KEY
+              value: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"  # ❌ 絶対にNG
+          securityContext:
+            # ⚠️ 課題2-C: 特権コンテナ → ホストマシンのほぼ全権限を取得できる
+            privileged: true
+            # ⚠️ 課題2-D: rootとして実行
+            runAsUser: 0
+          volumeMounts:
+            # ⚠️ 課題2-E: ホストの / をマウント → ホストのファイルシステムに読み書き可能
+            - name: host-root
+              mountPath: /host
+      volumes:
+        - name: host-root
+          hostPath:
+            # ⚠️ 課題2-F: ホストの / (ルートディレクトリ) をマウント
+            path: /

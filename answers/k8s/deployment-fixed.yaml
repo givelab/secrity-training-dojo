@@ -1,0 +1,68 @@
+# ✅ 解答例: 課題1 + 課題2を修正したDeployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: dojo
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      # ✅ 修正2-A: hostPID / hostNetwork を削除（デフォルトfalse）
+      serviceAccountName: backend-sa  # ✅ IRSAを使う場合はServiceAccountを指定
+      containers:
+        - name: backend
+          image: security-dojo-app:fixed
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+          env:
+            - name: DB_HOST
+              value: "postgres-svc"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "appdb"
+            - name: DB_USER
+              value: "appuser"
+            # ✅ 修正1-A: secretKeyRefを使ってK8s Secretから読み込む
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: password
+            # ✅ 修正1-B: AWSクレデンシャルの平文記述を削除
+            # IRSAを使えばAWS_ACCESS_KEY_IDなどの環境変数は不要
+          securityContext:
+            # ✅ 修正2-B: privileged: true を削除し、最小権限のsecurityContextを設定
+            privileged: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          # ✅ 書き込みが必要な一時ディレクトリのみtmpfsでマウント
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # ✅ 修正2-C: hostPathボリュームを削除し、tmpfsのみ使用
+        - name: tmp
+          emptyDir: {}
